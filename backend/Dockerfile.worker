@@ -1,0 +1,31 @@
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    python3.10-venv \
+    git \
+    wget \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /usr/bin/python3.10 /usr/bin/python
+
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+RUN pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cu121
+
+COPY . .
+
+RUN mkdir -p /app/storage/uploads /app/storage/outputs /app/storage/previews
+
+ENV PYTHONPATH=/app
+ENV TRELLIS_DEVICE=cuda
+ENV CUDA_VISIBLE_DEVICES=0
+
+CMD ["python3", "-m", "app.workers.gpu_worker"]
