@@ -9,6 +9,7 @@ from app.api.v1.schemas.generate import (
 from app.api.v1.schemas.job import (
     JobStatus,
     JobResult,
+    JobError,
     JobResponse,
     JobListResponse
 )
@@ -26,6 +27,7 @@ __all__ = [
     "LLMProvider",
     "JobStatus",
     "JobResult",
+    "JobError",
     "JobResponse",
     "JobListResponse",
     "PromptEnhanceRequest",

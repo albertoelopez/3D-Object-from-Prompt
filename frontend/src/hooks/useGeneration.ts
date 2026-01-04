@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { generateTextTo3D, generateImageTo3D, getJob } from '@/services/api/generation';
 import { wsClient } from '@/services/websocket/client';
-import { useGenerationStore } from '@/store';
+import { useGenerationStore, useToastStore } from '@/store';
 import { TextTo3DRequest, WSMessage, Job, JobStatus } from '@/types/api';
 
 export function useGeneration() {
@@ -14,6 +14,7 @@ export function useGeneration() {
     setIsGenerating,
     setError,
   } = useGenerationStore();
+  const { addToast } = useToastStore();
 
   const handleWebSocketMessage = useCallback(
     (message: WSMessage) => {
@@ -29,17 +30,27 @@ export function useGeneration() {
         case 'completion':
           if (message.result) {
             setJobCompleted(message.result);
+            addToast({
+              type: 'success',
+              message: '3D model generated successfully! Ready to download.',
+              duration: 6000,
+            });
           }
           wsClient.disconnect();
           break;
 
         case 'error':
           setJobFailed(message.error?.message || 'Unknown error');
+          addToast({
+            type: 'error',
+            message: `Generation failed: ${message.error?.message || 'Unknown error'}`,
+            duration: 8000,
+          });
           wsClient.disconnect();
           break;
       }
     },
-    [updateJobProgress, setJobCompleted, setJobFailed]
+    [updateJobProgress, setJobCompleted, setJobFailed, addToast]
   );
 
   const generateFromText = useCallback(

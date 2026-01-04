@@ -1,9 +1,14 @@
 import os
+import sys
 import io
 from typing import Dict, Any, Optional, Callable, List
 from pathlib import Path
 from PIL import Image
 import torch
+
+TRELLIS_PATH = '/home/darthvader/AI_Projects/create_3d_objects/TRELLIS'
+if TRELLIS_PATH not in sys.path:
+    sys.path.insert(0, TRELLIS_PATH)
 
 from app.config import settings
 from app.core.storage import storage_service

@@ -1,9 +1,10 @@
-import { Suspense, useRef, useEffect } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Suspense, useRef } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, useGLTF, Center, Html } from '@react-three/drei';
 import { Download, RotateCcw } from 'lucide-react';
 import { useGenerationStore } from '@/store';
 import { getDownloadUrl } from '@/services/api/generation';
+import { Job } from '@/types/api';
 import * as THREE from 'three';
 
 function Model({ url }: { url: string }) {
@@ -80,19 +81,85 @@ function Scene() {
   );
 }
 
+function sanitizeFilename(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '_')
+    .substring(0, 50);
+}
+
+function generateFilename(job: Job | null, type: 'glb' | 'ply'): string {
+  if (!job?.input) return `model.${type}`;
+
+  const timestamp = new Date().toISOString().slice(0, 10);
+
+  if (job.input.type === 'text' && job.input.prompt) {
+    const promptSlug = sanitizeFilename(job.input.prompt);
+    return `${promptSlug}_${timestamp}.${type}`;
+  }
+
+  if (job.input.type === 'image' && job.input.image_filename) {
+    const imageName = job.input.image_filename.replace(/\.[^/.]+$/, '');
+    const imageSlug = sanitizeFilename(imageName);
+    return `${imageSlug}_3d_${timestamp}.${type}`;
+  }
+
+  return `model_${timestamp}.${type}`;
+}
+
 export function ModelViewer() {
   const { currentJob } = useGenerationStore();
   const hasModel = currentJob?.status === 'completed' && currentJob.result;
 
-  const handleDownload = (type: 'glb' | 'ply') => {
+  const handleDownload = async (type: 'glb' | 'ply') => {
     if (!currentJob) return;
+
     const url = getDownloadUrl(currentJob.job_id, type);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `model.${type}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const filename = generateFilename(currentJob, type);
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Download failed');
+
+      const blob = await response.blob();
+
+      if ('showSaveFilePicker' in window) {
+        try {
+          const mimeType = type === 'glb' ? 'model/gltf-binary' : 'application/x-ply';
+          const handle = await (window as unknown as { showSaveFilePicker: (options: { suggestedName: string; types: Array<{ description: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: `3D Model (${type.toUpperCase()})`,
+              accept: { [mimeType]: [`.${type}`] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return;
+        } catch (err) {
+          if ((err as Error).name === 'AbortError') return;
+        }
+      }
+
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Download error:', error);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   return (
